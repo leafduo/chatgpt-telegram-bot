@@ -43,6 +43,17 @@ func main() {
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
+	_, _ = bot.Request(tgbotapi.NewSetMyCommands([]tgbotapi.BotCommand{
+		{
+			Command:     "help",
+			Description: "Get help",
+		},
+		{
+			Command:     "new",
+			Description: "Clear context and start a new conversation",
+		},
+	}...))
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
