@@ -33,7 +33,8 @@ go install github.com/leafduo/chatgpt-telegram-bot@latest
 ```bash
 export OPENAI_API_KEY=<your_openai_api_key>
 export TELEGRAM_APITOKEN=<your_telegram_bot_token>
-export ALLOWED_TELEGRAM_ID=<your_telegram_id>,<your_friend_telegram_id>
+export ALLOWED_TELEGRAM_ID=<your_telegram_id>,<your_friend_telegram_id>    # optional, default is empty. Only allow these users to use the bot. Empty means allow all users.
+export MODEL_TEMPERATURE=1.0  # optional, default is 1.0. Higher temperature means more random responses. See https://platform.openai.com/docs/api-reference/chat/create#chat/create-temperature
 
 chatgpt-telegram-bot
 ```

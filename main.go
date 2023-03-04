@@ -18,6 +18,7 @@ import (
 var cfg struct {
 	TelegramAPIToken  string  `env:"TELEGRAM_APITOKEN"`
 	OpenAIAPIKey      string  `env:"OPENAI_API_KEY"`
+	ModelTemperature  float32 `env:"MODEL_TEMPERATURE" envDefault:"1.0"`
 	AllowedTelegramID []int64 `env:"ALLOWED_TELEGRAM_ID" envSeparator:","`
 }
 
@@ -165,7 +166,7 @@ func handleUserPrompt(userID int64, msg string) (string, bool, error) {
 
 	req := gogpt.ChatCompletionRequest{
 		Model:       gogpt.GPT3Dot5Turbo,
-		Temperature: 1,
+		Temperature: cfg.ModelTemperature,
 		TopP:        1,
 		N:           1,
 		// PresencePenalty:  0.2,
