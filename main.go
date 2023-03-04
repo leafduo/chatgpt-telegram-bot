@@ -38,6 +38,13 @@ func main() {
 		fmt.Printf("%+v\n", err)
 	}
 
+	if len(cfg.TelegramAPIToken) == 0 {
+		log.Panic("Telegram API token required, please set TELEGRAM_APITOKEN environment variable.")
+	}
+	if len(cfg.OpenAIAPIKey) == 0 {
+		log.Panic("OpenAI API key required, please set OPENAI_API_KEY environment variable.")
+	}
+
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramAPIToken)
 	if err != nil {
 		panic(err)
