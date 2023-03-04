@@ -16,16 +16,18 @@ import (
 )
 
 var cfg struct {
-	TelegramAPIToken  string  `env:"TELEGRAM_APITOKEN"`
-	OpenAIAPIKey      string  `env:"OPENAI_API_KEY"`
-	ModelTemperature  float32 `env:"MODEL_TEMPERATURE" envDefault:"1.0"`
-	AllowedTelegramID []int64 `env:"ALLOWED_TELEGRAM_ID" envSeparator:","`
+	TelegramAPIToken           string  `env:"TELEGRAM_APITOKEN"`
+	OpenAIAPIKey               string  `env:"OPENAI_API_KEY"`
+	ModelTemperature           float32 `env:"MODEL_TEMPERATURE" envDefault:"1.0"`
+	AllowedTelegramID          []int64 `env:"ALLOWED_TELEGRAM_ID" envSeparator:","`
+	ConversationTimeoutSeconds int     `env:"CONVERSATION_TIMEOUT_SECONDS" envDefault:"900"`
 }
 
 type User struct {
 	TelegramID     int64
 	LastActiveTime time.Time
 	HistoryMessage []gogpt.ChatCompletionMessage
+	LatestMessage  tgbotapi.Message
 }
 
 var users = make(map[int64]*User)
@@ -54,6 +56,21 @@ func main() {
 			Description: "Clear context and start a new conversation",
 		},
 	}...))
+
+	// check user context expiration every 5 seconds
+	go func() {
+		for {
+			for userID, user := range users {
+				cleared := clearUserContextIfExpires(userID)
+				if cleared {
+					lastMessage := user.LatestMessage
+					msg := tgbotapi.NewEditMessageText(userID, lastMessage.MessageID, lastMessage.Text+"\n\nContext cleared due to inactivity.")
+					_, _ = bot.Send(msg)
+				}
+			}
+			time.Sleep(5 * time.Second)
+		}
+	}()
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -117,12 +134,12 @@ func main() {
 			if err != nil {
 				log.Print(err)
 
-				_, err := bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, err.Error()))
+				err := send(bot, tgbotapi.NewMessage(update.Message.Chat.ID, err.Error()))
 				if err != nil {
 					log.Print(err)
 				}
 			} else {
-				_, err := bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, answerText))
+				err := send(bot, tgbotapi.NewMessage(update.Message.Chat.ID, answerText))
 				if err != nil {
 					log.Print(err)
 				}
@@ -130,7 +147,7 @@ func main() {
 				if contextTrimmed {
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Context trimmed.")
 					msg.DisableNotification = true
-					_, err = bot.Send(msg)
+					err = send(bot, msg)
 					if err != nil {
 						log.Print(err)
 					}
@@ -140,12 +157,17 @@ func main() {
 	}
 }
 
-func handleUserPrompt(userID int64, msg string) (string, bool, error) {
-	if user, ok := users[userID]; ok {
-		if user.LastActiveTime.Add(15 * time.Minute).Before(time.Now()) {
-			resetUser(userID)
-		}
+func send(bot *tgbotapi.BotAPI, c tgbotapi.Chattable) error {
+	msg, err := bot.Send(c)
+	if err == nil {
+		users[msg.Chat.ID].LatestMessage = msg
 	}
+
+	return err
+}
+
+func handleUserPrompt(userID int64, msg string) (string, bool, error) {
+	clearUserContextIfExpires(userID)
 
 	if _, ok := users[userID]; !ok {
 		users[userID] = &User{
@@ -194,6 +216,16 @@ func handleUserPrompt(userID int64, msg string) (string, bool, error) {
 	}
 
 	return answer.Content, contextTrimmed, nil
+}
+
+func clearUserContextIfExpires(userID int64) bool {
+	user := users[userID]
+	if user != nil && user.LastActiveTime.Add(time.Duration(cfg.ConversationTimeoutSeconds)*time.Second).Before(time.Now()) {
+		resetUser(userID)
+		return true
+	}
+
+	return false
 }
 
 func resetUser(userID int64) {
