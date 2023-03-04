@@ -2,7 +2,7 @@ version: "3"
 services:
   chatgpt-telegram-bot:
     container_name: chatgpt-telegram-bot
-    image: ghcr.io/leafduo/chatgpt-telegram-bot:main
+    image: ghcr.io/leafduo/chatgpt-telegram-bot:latest
     restart: always
     environment:
       - TELEGRAM_APITOKEN=xxxx # Telegram bot API token
