@@ -134,12 +134,12 @@ func main() {
 			if err != nil {
 				log.Print(err)
 
-				err := send(bot, tgbotapi.NewMessage(update.Message.Chat.ID, err.Error()))
+				err = send(bot, tgbotapi.NewMessage(update.Message.Chat.ID, err.Error()))
 				if err != nil {
 					log.Print(err)
 				}
 			} else {
-				err := send(bot, tgbotapi.NewMessage(update.Message.Chat.ID, answerText))
+				err = send(bot, tgbotapi.NewMessage(update.Message.Chat.ID, answerText))
 				if err != nil {
 					log.Print(err)
 				}

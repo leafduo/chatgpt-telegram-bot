@@ -22,7 +22,7 @@ go install github.com/leafduo/chatgpt-telegram-bot@latest
 
 4. Install using binary
 
-   You can get prebuilt binaries from [Github Releases](https://github.com/leafduo/chatgpt-telegram-bot/releases) and put it in `$PATH`
+   You can get prebuilt binaries from [GitHub Releases](https://github.com/leafduo/chatgpt-telegram-bot/releases) and put it in `$PATH`
 
 5. Install using Docker-compose
 
