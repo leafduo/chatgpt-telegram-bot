@@ -1,0 +1,10 @@
+version: '3'
+services:
+  chatgpt-telegram-bot:
+    container_name: chatgpt-telegram-bot
+    image: ghcr.io/leafduo/chatgpt-telegram-bot:main
+    restart: always
+    environment:
+      - TELEGRAM_APITOKEN=xxxx
+      - OPENAI_API_KEY=xxxx
+      - ALLOWED_TELEGRAM_ID=12345,23456   # telegram user ids allowed to use this bot, multiple ids seperated by comma
