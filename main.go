@@ -16,11 +16,12 @@ import (
 )
 
 var cfg struct {
-	TelegramAPIToken               string  `env:"TELEGRAM_APITOKEN"`
-	OpenAIAPIKey                   string  `env:"OPENAI_API_KEY"`
-	ModelTemperature               float32 `env:"MODEL_TEMPERATURE" envDefault:"1.0"`
-	AllowedTelegramID              []int64 `env:"ALLOWED_TELEGRAM_ID" envSeparator:","`
-	ConversationIdleTimeoutSeconds int     `env:"CONVERSATION_IDLE_TIMEOUT_SECONDS" envDefault:"900"`
+	TelegramAPIToken                    string  `env:"TELEGRAM_APITOKEN"`
+	OpenAIAPIKey                        string  `env:"OPENAI_API_KEY"`
+	ModelTemperature                    float32 `env:"MODEL_TEMPERATURE" envDefault:"1.0"`
+	AllowedTelegramID                   []int64 `env:"ALLOWED_TELEGRAM_ID" envSeparator:","`
+	ConversationIdleTimeoutSeconds      int     `env:"CONVERSATION_IDLE_TIMEOUT_SECONDS" envDefault:"900"`
+	NotifyUserOnConversationIdleTimeout bool    `env:"NOTIFY_USER_ON_CONVERSATION_IDLE_TIMEOUT" envDefault:"false"`
 }
 
 type User struct {
@@ -64,8 +65,10 @@ func main() {
 				cleared := clearUserContextIfExpires(userID)
 				if cleared {
 					lastMessage := user.LatestMessage
-					msg := tgbotapi.NewEditMessageText(userID, lastMessage.MessageID, lastMessage.Text+"\n\nContext cleared due to inactivity.")
-					_, _ = bot.Send(msg)
+					if cfg.NotifyUserOnConversationIdleTimeout {
+						msg := tgbotapi.NewEditMessageText(userID, lastMessage.MessageID, lastMessage.Text+"\n\nContext cleared due to inactivity.")
+						_, _ = bot.Send(msg)
+					}
 				}
 			}
 			time.Sleep(5 * time.Second)
