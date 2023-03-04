@@ -79,8 +79,10 @@ func main() {
 
 			// Extract the command from the Message.
 			switch update.Message.Command() {
+			case "start":
+				msg.Text = "Welcome to ChatGPT bot! Write something to start a conversation. Use /new to clear context and start a new conversation."
 			case "help":
-				msg.Text = "I understand /sayhi and /status."
+				msg.Text = "Write something to start a conversation. Use /new to clear context and start a new conversation."
 			case "new":
 				resetUser(update.Message.From.ID)
 				msg.Text = "OK, let's start a new conversation."
