@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -53,7 +55,12 @@ func main() {
 
 		_, err := bot.Send(tgbotapi.NewChatAction(update.Message.Chat.ID, tgbotapi.ChatTyping))
 		if err != nil {
-			log.Print(err)
+			// Sending chat action returns bool value, which causes `Send` to return unmarshal error.
+			// So we need to check if it's an unmarshal error and ignore it.
+			var unmarshalError *json.UnmarshalTypeError
+			if !errors.As(err, &unmarshalError) {
+				log.Print(err)
+			}
 		}
 
 		if len(cfg.AllowedTelegramID) != 0 {
