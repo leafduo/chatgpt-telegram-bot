@@ -16,11 +16,11 @@ import (
 )
 
 var cfg struct {
-	TelegramAPIToken           string  `env:"TELEGRAM_APITOKEN"`
-	OpenAIAPIKey               string  `env:"OPENAI_API_KEY"`
-	ModelTemperature           float32 `env:"MODEL_TEMPERATURE" envDefault:"1.0"`
-	AllowedTelegramID          []int64 `env:"ALLOWED_TELEGRAM_ID" envSeparator:","`
-	ConversationTimeoutSeconds int     `env:"CONVERSATION_TIMEOUT_SECONDS" envDefault:"900"`
+	TelegramAPIToken               string  `env:"TELEGRAM_APITOKEN"`
+	OpenAIAPIKey                   string  `env:"OPENAI_API_KEY"`
+	ModelTemperature               float32 `env:"MODEL_TEMPERATURE" envDefault:"1.0"`
+	AllowedTelegramID              []int64 `env:"ALLOWED_TELEGRAM_ID" envSeparator:","`
+	ConversationIdleTimeoutSeconds int     `env:"CONVERSATION_IDLE_TIMEOUT_SECONDS" envDefault:"900"`
 }
 
 type User struct {
@@ -220,7 +220,8 @@ func handleUserPrompt(userID int64, msg string) (string, bool, error) {
 
 func clearUserContextIfExpires(userID int64) bool {
 	user := users[userID]
-	if user != nil && user.LastActiveTime.Add(time.Duration(cfg.ConversationTimeoutSeconds)*time.Second).Before(time.Now()) {
+	if user != nil &&
+		user.LastActiveTime.Add(time.Duration(cfg.ConversationIdleTimeoutSeconds)*time.Second).Before(time.Now()) {
 		resetUser(userID)
 		return true
 	}

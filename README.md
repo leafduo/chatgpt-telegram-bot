@@ -38,6 +38,9 @@ export ALLOWED_TELEGRAM_ID=<your_telegram_id>,<your_friend_telegram_id>
 # optional, default is 1.0. Higher temperature means more random responses.
 # See https://platform.openai.com/docs/api-reference/chat/create#chat/create-temperature
 export MODEL_TEMPERATURE=1.0
+# optional, default is 900. Max idle duration for a certain conversation.
+# After this duration, a new conversation will be started.
+export CONVERSATION_IDLE_TIMEOUT_SECONDS=900
 
 chatgpt-telegram-bot
 ```
