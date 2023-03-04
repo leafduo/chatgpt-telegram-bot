@@ -16,8 +16,8 @@ import (
 )
 
 var cfg struct {
-	TelegramAPIToken                    string  `env:"TELEGRAM_APITOKEN"`
-	OpenAIAPIKey                        string  `env:"OPENAI_API_KEY"`
+	TelegramAPIToken                    string  `env:"TELEGRAM_APITOKEN,required"`
+	OpenAIAPIKey                        string  `env:"OPENAI_API_KEY,required"`
 	ModelTemperature                    float32 `env:"MODEL_TEMPERATURE" envDefault:"1.0"`
 	AllowedTelegramID                   []int64 `env:"ALLOWED_TELEGRAM_ID" envSeparator:","`
 	ConversationIdleTimeoutSeconds      int     `env:"CONVERSATION_IDLE_TIMEOUT_SECONDS" envDefault:"900"`
@@ -36,13 +36,7 @@ var users = make(map[int64]*User)
 func main() {
 	if err := env.Parse(&cfg); err != nil {
 		fmt.Printf("%+v\n", err)
-	}
-
-	if len(cfg.TelegramAPIToken) == 0 {
-		log.Panic("Telegram API token required, please set TELEGRAM_APITOKEN environment variable.")
-	}
-	if len(cfg.OpenAIAPIKey) == 0 {
-		log.Panic("OpenAI API key required, please set OPENAI_API_KEY environment variable.")
+		os.Exit(1)
 	}
 
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramAPIToken)
