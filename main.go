@@ -1,9 +1,6 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -12,7 +9,8 @@ import (
 
 	"github.com/caarlos0/env/v7"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	gogpt "github.com/sashabaranov/go-gpt3"
+	openai "github.com/sashabaranov/go-openai"
+	"github.com/sourcegraph/conc"
 )
 
 var cfg struct {
@@ -27,7 +25,7 @@ var cfg struct {
 type User struct {
 	TelegramID     int64
 	LastActiveTime time.Time
-	HistoryMessage []gogpt.ChatCompletionMessage
+	HistoryMessage []openai.ChatCompletionMessage
 	LatestMessage  tgbotapi.Message
 }
 
@@ -44,7 +42,7 @@ func main() {
 		panic(err)
 	}
 
-	// bot.Debug = true
+	gpt := NewGPT()
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
@@ -59,23 +57,6 @@ func main() {
 		},
 	}...))
 
-	// check user context expiration every 5 seconds
-	go func() {
-		for {
-			for userID, user := range users {
-				cleared := clearUserContextIfExpires(userID)
-				if cleared {
-					lastMessage := user.LatestMessage
-					if cfg.NotifyUserOnConversationIdleTimeout {
-						msg := tgbotapi.NewEditMessageText(userID, lastMessage.MessageID, lastMessage.Text+"\n\nContext cleared due to inactivity.")
-						_, _ = bot.Send(msg)
-					}
-				}
-			}
-			time.Sleep(5 * time.Second)
-		}
-	}()
-
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
@@ -84,16 +65,6 @@ func main() {
 	for update := range updates {
 		if update.Message == nil { // ignore any non-Message updates
 			continue
-		}
-
-		_, err := bot.Send(tgbotapi.NewChatAction(update.Message.Chat.ID, tgbotapi.ChatTyping))
-		if err != nil {
-			// Sending chat action returns bool value, which causes `Send` to return unmarshal error.
-			// So we need to check if it's an unmarshal error and ignore it.
-			var unmarshalError *json.UnmarshalTypeError
-			if !errors.As(err, &unmarshalError) {
-				log.Print(err)
-			}
 		}
 
 		if len(cfg.AllowedTelegramID) != 0 {
@@ -124,7 +95,7 @@ func main() {
 			case "help":
 				msg.Text = "Write something to start a conversation. Use /new to clear context and start a new conversation."
 			case "new":
-				resetUser(update.Message.From.ID)
+				gpt.ResetUser(update.Message.From.ID)
 				msg.Text = "OK, let's start a new conversation."
 			default:
 				msg.Text = "I don't know that command"
@@ -134,105 +105,66 @@ func main() {
 				log.Print(err)
 			}
 		} else {
-			answerText, contextTrimmed, err := handleUserPrompt(update.Message.From.ID, update.Message.Text)
-			if err != nil {
-				log.Print(err)
+			answerChan := make(chan string)
+			throttledAnswerChan := make(chan string)
+			var currentAnswer string
+			userID := update.Message.Chat.ID
+			msg := update.Message.Text
 
-				err = send(bot, tgbotapi.NewMessage(update.Message.Chat.ID, err.Error()))
+			wg := conc.NewWaitGroup()
+			wg.Go(func() {
+				err := gpt.SendMessage(userID, msg, answerChan)
 				if err != nil {
 					log.Print(err)
-				}
-			} else {
-				err = send(bot, tgbotapi.NewMessage(update.Message.Chat.ID, answerText))
-				if err != nil {
-					log.Print(err)
-				}
 
-				if contextTrimmed {
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Context trimmed.")
-					msg.DisableNotification = true
-					err = send(bot, msg)
+					_, err = bot.Send(tgbotapi.NewMessage(userID, err.Error()))
 					if err != nil {
 						log.Print(err)
 					}
 				}
-			}
+			})
+			wg.Go(func() {
+				lastUpdateTime := time.Now()
+				for delta := range answerChan {
+					currentAnswer += delta
+
+					// Limit message to 1 message per second
+					// https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this
+					if lastUpdateTime.Add(time.Second + time.Millisecond).Before(time.Now()) {
+						throttledAnswerChan <- currentAnswer
+						lastUpdateTime = time.Now()
+					}
+				}
+				throttledAnswerChan <- currentAnswer
+				close(throttledAnswerChan)
+			})
+			wg.Go(func() {
+				msg, err := bot.Send(tgbotapi.NewMessage(userID, "Generating..."))
+				if err != nil {
+					log.Print(err)
+					return
+				}
+
+				for currentAnswer := range throttledAnswerChan {
+					editedMsg := tgbotapi.NewEditMessageText(userID, msg.MessageID, currentAnswer)
+					_, err := bot.Send(editedMsg)
+					if err != nil {
+						log.Print(err)
+					}
+				}
+			})
+
+			wg.Wait()
+
+			// TODO: count tokens
+			// if contextTrimmed {
+			// 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Context trimmed.")
+			// 	msg.DisableNotification = true
+			// 	err = send(bot, msg)
+			// 	if err != nil {
+			// 		log.Print(err)
+			// 	}
+			// }
 		}
 	}
-}
-
-func send(bot *tgbotapi.BotAPI, c tgbotapi.Chattable) error {
-	msg, err := bot.Send(c)
-	if err == nil {
-		users[msg.Chat.ID].LatestMessage = msg
-	}
-
-	return err
-}
-
-func handleUserPrompt(userID int64, msg string) (string, bool, error) {
-	clearUserContextIfExpires(userID)
-
-	if _, ok := users[userID]; !ok {
-		users[userID] = &User{
-			TelegramID:     userID,
-			LastActiveTime: time.Now(),
-			HistoryMessage: []gogpt.ChatCompletionMessage{},
-		}
-	}
-
-	users[userID].HistoryMessage = append(users[userID].HistoryMessage, gogpt.ChatCompletionMessage{
-		Role:    "user",
-		Content: msg,
-	})
-	users[userID].LastActiveTime = time.Now()
-
-	c := gogpt.NewClient(os.Getenv("OPENAI_API_KEY"))
-	ctx := context.Background()
-
-	req := gogpt.ChatCompletionRequest{
-		Model:       gogpt.GPT3Dot5Turbo,
-		Temperature: cfg.ModelTemperature,
-		TopP:        1,
-		N:           1,
-		// PresencePenalty:  0.2,
-		// FrequencyPenalty: 0.2,
-		Messages: users[userID].HistoryMessage,
-	}
-
-	fmt.Println(req)
-
-	resp, err := c.CreateChatCompletion(ctx, req)
-	if err != nil {
-		log.Print(err)
-		users[userID].HistoryMessage = users[userID].HistoryMessage[:len(users[userID].HistoryMessage)-1]
-		return "", false, err
-	}
-
-	answer := resp.Choices[0].Message
-
-	users[userID].HistoryMessage = append(users[userID].HistoryMessage, answer)
-
-	var contextTrimmed bool
-	if resp.Usage.TotalTokens > 3500 {
-		users[userID].HistoryMessage = users[userID].HistoryMessage[1:]
-		contextTrimmed = true
-	}
-
-	return answer.Content, contextTrimmed, nil
-}
-
-func clearUserContextIfExpires(userID int64) bool {
-	user := users[userID]
-	if user != nil &&
-		user.LastActiveTime.Add(time.Duration(cfg.ConversationIdleTimeoutSeconds)*time.Second).Before(time.Now()) {
-		resetUser(userID)
-		return true
-	}
-
-	return false
-}
-
-func resetUser(userID int64) {
-	delete(users, userID)
 }
