@@ -29,8 +29,6 @@ type User struct {
 	LatestMessage  tgbotapi.Message
 }
 
-var users = make(map[int64]*User)
-
 func main() {
 	if err := env.Parse(&cfg); err != nil {
 		fmt.Printf("%+v\n", err)
@@ -107,7 +105,6 @@ func main() {
 		} else {
 			answerChan := make(chan string)
 			throttledAnswerChan := make(chan string)
-			var currentAnswer string
 			userID := update.Message.Chat.ID
 			msg := update.Message.Text
 
@@ -125,9 +122,9 @@ func main() {
 			})
 			wg.Go(func() {
 				lastUpdateTime := time.Now()
-				for delta := range answerChan {
-					currentAnswer += delta
-
+				var currentAnswer string
+				for answer := range answerChan {
+					currentAnswer = answer
 					// Limit message to 1 message per second
 					// https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this
 					if lastUpdateTime.Add(time.Second + time.Millisecond).Before(time.Now()) {

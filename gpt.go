@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -51,22 +50,26 @@ func NewGPT() *GPT {
 func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) error {
 	gpt.clearUserContextIfExpires(userID)
 
-	if _, ok := users[userID]; !ok {
-		users[userID] = &User{
+	if _, ok := gpt.userState[userID]; !ok {
+		gpt.userState[userID] = &UserState{
 			TelegramID:     userID,
 			LastActiveTime: time.Now(),
 			HistoryMessage: []openai.ChatCompletionMessage{},
 		}
 	}
 
-	users[userID].HistoryMessage = append(users[userID].HistoryMessage, openai.ChatCompletionMessage{
+	user := gpt.userState[userID]
+
+	user.HistoryMessage = append(user.HistoryMessage, openai.ChatCompletionMessage{
 		Role:    "user",
 		Content: msg,
 	})
-	users[userID].LastActiveTime = time.Now()
+	user.LastActiveTime = time.Now()
 
-	c := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	c := openai.NewClient(cfg.OpenAIAPIKey)
 	ctx := context.Background()
+
+	log.Print(user.HistoryMessage)
 
 	req := openai.ChatCompletionRequest{
 		Model:       openai.GPT3Dot5Turbo,
@@ -75,16 +78,18 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 		N:           1,
 		// PresencePenalty:  0.2,
 		// FrequencyPenalty: 0.2,
-		Messages: users[userID].HistoryMessage,
+		Messages: user.HistoryMessage,
 		Stream:   true,
 	}
 
 	stream, err := c.CreateChatCompletionStream(ctx, req)
 	if err != nil {
 		log.Print(err)
-		users[userID].HistoryMessage = users[userID].HistoryMessage[:len(users[userID].HistoryMessage)-1]
+		user.HistoryMessage = user.HistoryMessage[:len(user.HistoryMessage)-1]
 		return err
 	}
+
+	var currentAnswer string
 
 	defer stream.Close()
 	for {
@@ -101,8 +106,14 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 		}
 
 		fmt.Printf("%+v\n", response)
-		answerChan <- response.Choices[0].Delta.Content
+		currentAnswer += response.Choices[0].Delta.Content
+		answerChan <- currentAnswer
 	}
+
+	user.HistoryMessage = append(user.HistoryMessage, openai.ChatCompletionMessage{
+		Role:    "assistant",
+		Content: currentAnswer,
+	})
 
 	return nil
 
