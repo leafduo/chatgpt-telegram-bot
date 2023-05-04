@@ -71,7 +71,7 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 		fmt.Println("History trimmed due to token limit")
 	}
 	for len(user.HistoryMessage) > 0 {
-		tokenCount, err := CountToken(user.HistoryMessage, "gpt-3.5-turbo")
+		tokenCount, err := CountToken(user.HistoryMessage, cfg.OPENAIModel)
 		if err != nil {
 			fmt.Println("count token error:", err)
 
