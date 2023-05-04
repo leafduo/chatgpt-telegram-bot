@@ -7,36 +7,36 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-func NumTokensFromMessages(messages []openai.ChatCompletionMessage, model string) (num_tokens int) {
+func CountToken(messages []openai.ChatCompletionMessage, model string) (int, error) {
 	tkm, err := tiktoken.EncodingForModel(model)
 	if err != nil {
-		err = fmt.Errorf("EncodingForModel: %v", err)
-		fmt.Println(err)
-		return
+		return 0, err
 	}
 
-	var tokens_per_message int
-	var tokens_per_name int
+	var tokensPerMessage int
+	var tokensPerName int
 	if model == "gpt-3.5-turbo-0301" || model == "gpt-3.5-turbo" {
-		tokens_per_message = 4
-		tokens_per_name = -1
+		tokensPerMessage = 4
+		tokensPerName = -1
 	} else if model == "gpt-4-0314" || model == "gpt-4" {
-		tokens_per_message = 3
-		tokens_per_name = 1
+		tokensPerMessage = 3
+		tokensPerName = 1
 	} else {
 		fmt.Println("Warning: model not found. Using cl100k_base encoding.")
-		tokens_per_message = 3
-		tokens_per_name = 1
+		tokensPerMessage = 3
+		tokensPerName = 1
 	}
 
+	var tokenCount int
+
 	for _, message := range messages {
-		num_tokens += tokens_per_message
-		num_tokens += len(tkm.Encode(message.Content, nil, nil))
-		num_tokens += len(tkm.Encode(message.Role, nil, nil))
+		tokenCount += tokensPerMessage
+		tokenCount += len(tkm.Encode(message.Content, nil, nil))
+		tokenCount += len(tkm.Encode(message.Role, nil, nil))
 		if message.Name != "" {
-			num_tokens += tokens_per_name
+			tokenCount += tokensPerName
 		}
 	}
-	num_tokens += 3
-	return num_tokens
+	tokenCount += 3
+	return tokenCount, nil
 }

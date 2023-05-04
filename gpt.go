@@ -66,8 +66,24 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 	})
 	user.LastActiveTime = time.Now()
 
-	for NumTokensFromMessages(user.HistoryMessage, "gpt-3.5-turbo") > 3500 {
+	trimHistory := func() {
 		user.HistoryMessage = user.HistoryMessage[1:]
+		fmt.Println("History trimmed due to token limit")
+	}
+	for len(user.HistoryMessage) > 0 {
+		tokenCount, err := CountToken(user.HistoryMessage, "gpt-3.5-turbo")
+		if err != nil {
+			fmt.Println("count token error:", err)
+
+			// How should we deal with this error?
+			trimHistory()
+			continue
+		}
+
+		if tokenCount < 3500 {
+			break
+		}
+		trimHistory()
 	}
 
 	c := openai.NewClient(cfg.OpenAIAPIKey)
