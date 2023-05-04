@@ -33,14 +33,20 @@ go install github.com/leafduo/chatgpt-telegram-bot@latest
 ```bash
 export OPENAI_API_KEY=<your_openai_api_key>
 export TELEGRAM_APITOKEN=<your_telegram_bot_token>
-# optional, default is empty. Only allow these users to use the bot. Empty means allow all users.
+# Optional, default is empty. Only allow these users to use the bot. Empty means allow all users.
 export ALLOWED_TELEGRAM_ID=<your_telegram_id>,<your_friend_telegram_id>
-# optional, default is 1.0. Higher temperature means more random responses.
+# Optional, default is 1.0. Higher temperature means more random responses.
 # See https://platform.openai.com/docs/api-reference/chat/create#chat/create-temperature
 export MODEL_TEMPERATURE=1.0
-# optional, default is 900. Max idle duration for a certain conversation.
+# Optional, default is 900. Max idle duration for a certain conversation.
 # After this duration, a new conversation will be started.
 export CONVERSATION_IDLE_TIMEOUT_SECONDS=900
+# Optional, defaults to gpt-3.5-turbo. Specify which model to use.
+# Currently, only `gpt-3.5-turbo` and `gpt-4` are supported.
+export OPENAIModel=gpt-3.5-turbo
+# Optional, defaults to https://api.openai.com.
+# You can use this to set a custom OpenAI API endpoint to use third party relay services like https://api2d.com/.
+export OpenAIBaseURL=https://api.openai.com
 
 chatgpt-telegram-bot
 ```

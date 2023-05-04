@@ -12,3 +12,4 @@ services:
       # optional, default is 1.0. Higher temperature means more random responses.
       # See https://platform.openai.com/docs/api-reference/chat/create#chat/create-temperature
       - MODEL_TEMPERATURE=1.0
+      # See README.md for more options
