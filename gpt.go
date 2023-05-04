@@ -86,11 +86,13 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 		trimHistory()
 	}
 
-	c := openai.NewClient(cfg.OpenAIAPIKey)
+	clientConfig := openai.DefaultConfig(cfg.OpenAIAPIKey)
+	clientConfig.BaseURL = cfg.OpenAIBaseURL
+	c := openai.NewClientWithConfig(clientConfig)
 	ctx := context.Background()
 
 	req := openai.ChatCompletionRequest{
-		Model:       openai.GPT3Dot5Turbo,
+		Model:       cfg.OPENAIModel,
 		Temperature: cfg.ModelTemperature,
 		TopP:        1,
 		N:           1,

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
 	"time"
@@ -16,6 +17,8 @@ import (
 var cfg struct {
 	TelegramAPIToken                    string  `env:"TELEGRAM_APITOKEN,required"`
 	OpenAIAPIKey                        string  `env:"OPENAI_API_KEY,required"`
+	OPENAIModel                         string  `env:"OPENAI_MODEL" envDefault:"gpt-3.5-turbo"`
+	OpenAIBaseURL                       string  `env:"OPENAI_BASE_URL" envDefault:"https://api.openai.com"`
 	ModelTemperature                    float32 `env:"MODEL_TEMPERATURE" envDefault:"1.0"`
 	AllowedTelegramID                   []int64 `env:"ALLOWED_TELEGRAM_ID" envSeparator:","`
 	ConversationIdleTimeoutSeconds      int     `env:"CONVERSATION_IDLE_TIMEOUT_SECONDS" envDefault:"900"`
@@ -33,6 +36,16 @@ func main() {
 	if err := env.Parse(&cfg); err != nil {
 		fmt.Printf("%+v\n", err)
 		os.Exit(1)
+	}
+
+	baseURL, err := url.JoinPath(cfg.OpenAIBaseURL, "/v1")
+	if err != nil {
+		panic(err)
+	}
+	cfg.OpenAIBaseURL = baseURL
+
+	if cfg.OPENAIModel != "gpt-3.5-turbo" && cfg.OPENAIModel != "gpt-4" {
+		log.Fatalf("Invalid OPENAI_MODEL: %s", cfg.OPENAIModel)
 	}
 
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramAPIToken)
