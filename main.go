@@ -148,7 +148,7 @@ func main() {
 				close(throttledAnswerChan)
 			})
 			wg.Go(func() {
-				msg, err := bot.Send(tgbotapi.NewChatAction(userID, tgbotapi.ChatTyping))
+				_, err := bot.Send(tgbotapi.NewChatAction(userID, tgbotapi.ChatTyping))
 				if err != nil {
 					log.Print(err)
 				}
@@ -156,7 +156,6 @@ func main() {
 				var messageID int
 
 				for currentAnswer := range throttledAnswerChan {
-					fmt.Print(messageID)
 					if messageID == 0 {
 						msg, err := bot.Send(tgbotapi.NewMessage(userID, currentAnswer))
 						if err != nil {
@@ -164,7 +163,7 @@ func main() {
 						}
 						messageID = msg.MessageID
 					} else {
-						editedMsg := tgbotapi.NewEditMessageText(userID, msg.MessageID, currentAnswer)
+						editedMsg := tgbotapi.NewEditMessageText(userID, messageID, currentAnswer)
 						_, err := bot.Send(editedMsg)
 						if err != nil {
 							log.Print(err)

@@ -1,43 +1,42 @@
 package main
 
 import (
-	"log"
-	"sync"
+	"fmt"
 
-	tokenizer "github.com/samber/go-gpt-3-encoder"
+	"github.com/pkoukk/tiktoken-go"
+	"github.com/sashabaranov/go-openai"
 )
 
-var encoder *tokenizer.Encoder
-var once sync.Once
-
-func CountToken(msg string) (int, error) {
-	once.Do(func() {
-		var err error
-		encoder, err = tokenizer.NewEncoder()
-		if err != nil {
-			log.Fatal(err)
-		}
-	})
-
-	/**
-	The exact algorithm for counting tokens has been documented at
-	https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb. However, we
-	are not using that algorithm in this project because no Go library currently implements the ChatGPT algorithm. The
-	Go library github.com/samber/go-gpt-3-encoder does implement the encoding used by GPT-3(p50k_base), but not
-	ChatGPT(cl100k_base). Additionally, counting tokens is not a critical part of this project; we only require a rough
-	estimation of the token count.
-
-	Based on my naïve experiments, the token count is not significantly different when English text is tokenized.
-	However, there is a significant difference when tokenizing Chinese or Japanese text. cl100k_base generates far fewer
-	tokens than p50k_base when tokenizing Chinese or Japanese. Most Chinese characters are counted as 1 token in
-	cl100k_base, whereas in p50k_base, they are mostly counted as 2 tokens.
-	*/
-
-	encoded, err := encoder.Encode(msg)
+func NumTokensFromMessages(messages []openai.ChatCompletionMessage, model string) (num_tokens int) {
+	tkm, err := tiktoken.EncodingForModel(model)
 	if err != nil {
-		return 0, err
+		err = fmt.Errorf("EncodingForModel: %v", err)
+		fmt.Println(err)
+		return
 	}
 
-	// 4 is the number of tokens added by the encoder
-	return len(encoded) + 4, nil
+	var tokens_per_message int
+	var tokens_per_name int
+	if model == "gpt-3.5-turbo-0301" || model == "gpt-3.5-turbo" {
+		tokens_per_message = 4
+		tokens_per_name = -1
+	} else if model == "gpt-4-0314" || model == "gpt-4" {
+		tokens_per_message = 3
+		tokens_per_name = 1
+	} else {
+		fmt.Println("Warning: model not found. Using cl100k_base encoding.")
+		tokens_per_message = 3
+		tokens_per_name = 1
+	}
+
+	for _, message := range messages {
+		num_tokens += tokens_per_message
+		num_tokens += len(tkm.Encode(message.Content, nil, nil))
+		num_tokens += len(tkm.Encode(message.Role, nil, nil))
+		if message.Name != "" {
+			num_tokens += tokens_per_name
+		}
+	}
+	num_tokens += 3
+	return num_tokens
 }

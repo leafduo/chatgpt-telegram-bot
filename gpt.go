@@ -18,24 +18,7 @@ type GPT struct {
 type UserState struct {
 	TelegramID     int64
 	LastActiveTime time.Time
-	HistoryMessage []Message
-}
-
-type Message struct {
-	Role       string
-	Content    string
-	TokenCount int
-}
-
-func convertMessageToChatCompletionMessage(msg []Message) []openai.ChatCompletionMessage {
-	var result []openai.ChatCompletionMessage
-	for _, m := range msg {
-		result = append(result, openai.ChatCompletionMessage{
-			Role:    m.Role,
-			Content: m.Content,
-		})
-	}
-	return result
+	HistoryMessage []openai.ChatCompletionMessage
 }
 
 func NewGPT() *GPT {
@@ -71,27 +54,24 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 		gpt.userState[userID] = &UserState{
 			TelegramID:     userID,
 			LastActiveTime: time.Now(),
-			HistoryMessage: []Message{},
+			HistoryMessage: []openai.ChatCompletionMessage{},
 		}
 	}
 
 	user := gpt.userState[userID]
 
-	userTokenCount, err := CountToken(msg)
-	if err != nil {
-		log.Print(err)
-	}
-	user.HistoryMessage = append(user.HistoryMessage, Message{
-		Role:       "user",
-		Content:    msg,
-		TokenCount: userTokenCount,
+	user.HistoryMessage = append(user.HistoryMessage, openai.ChatCompletionMessage{
+		Role:    "user",
+		Content: msg,
 	})
 	user.LastActiveTime = time.Now()
 
+	for NumTokensFromMessages(user.HistoryMessage, "gpt-3.5-turbo") > 3500 {
+		user.HistoryMessage = user.HistoryMessage[1:]
+	}
+
 	c := openai.NewClient(cfg.OpenAIAPIKey)
 	ctx := context.Background()
-
-	log.Print(user.HistoryMessage)
 
 	req := openai.ChatCompletionRequest{
 		Model:       openai.GPT3Dot5Turbo,
@@ -100,7 +80,7 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 		N:           1,
 		// PresencePenalty:  0.2,
 		// FrequencyPenalty: 0.2,
-		Messages: convertMessageToChatCompletionMessage(user.HistoryMessage),
+		Messages: user.HistoryMessage,
 		Stream:   true,
 	}
 
@@ -112,7 +92,6 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 	}
 
 	var currentAnswer string
-	var assistantTokenCount int
 
 	defer stream.Close()
 	for {
@@ -128,27 +107,14 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 			break
 		}
 
-		// It seems that OpenAI sends one token per event, so we can count the tokens by the number of events we
-		// receive.
-		assistantTokenCount++
 		currentAnswer += response.Choices[0].Delta.Content
 		answerChan <- currentAnswer
 	}
 
-	user.HistoryMessage = append(user.HistoryMessage, Message{
-		Role:       "assistant",
-		Content:    currentAnswer,
-		TokenCount: assistantTokenCount,
+	user.HistoryMessage = append(user.HistoryMessage, openai.ChatCompletionMessage{
+		Role:    "assistant",
+		Content: currentAnswer,
 	})
-
-	var totalTokenCount int
-	for i := len(user.HistoryMessage) - 1; i >= 0; i-- {
-		totalTokenCount += user.HistoryMessage[i].TokenCount
-		if totalTokenCount > 3500 {
-			user.HistoryMessage = user.HistoryMessage[i+1:]
-			return true, nil
-		}
-	}
 
 	return false, nil
 }
