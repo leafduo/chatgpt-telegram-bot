@@ -110,11 +110,21 @@ func main() {
 
 			wg := conc.NewWaitGroup()
 			wg.Go(func() {
-				err := gpt.SendMessage(userID, msg, answerChan)
+				contextTrimmed, err := gpt.SendMessage(userID, msg, answerChan)
 				if err != nil {
 					log.Print(err)
 
 					_, err = bot.Send(tgbotapi.NewMessage(userID, err.Error()))
+					if err != nil {
+						log.Print(err)
+					}
+
+					return
+				}
+
+				if contextTrimmed {
+					msg := tgbotapi.NewMessage(userID, "Context trimmed.")
+					_, err = bot.Send(msg)
 					if err != nil {
 						log.Print(err)
 					}
@@ -125,9 +135,11 @@ func main() {
 				var currentAnswer string
 				for answer := range answerChan {
 					currentAnswer = answer
-					// Limit message to 1 message per second
+					// Update message every 2.5 seconds to avoid hitting Telegram API limits. In the documentation,
+					// Although the documentation states that the limit is one message per second, in practice, it is
+					// still rate-limited.
 					// https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this
-					if lastUpdateTime.Add(time.Second + time.Millisecond).Before(time.Now()) {
+					if lastUpdateTime.Add(time.Duration(2500) * time.Millisecond).Before(time.Now()) {
 						throttledAnswerChan <- currentAnswer
 						lastUpdateTime = time.Now()
 					}
@@ -136,32 +148,32 @@ func main() {
 				close(throttledAnswerChan)
 			})
 			wg.Go(func() {
-				msg, err := bot.Send(tgbotapi.NewMessage(userID, "Generating..."))
+				msg, err := bot.Send(tgbotapi.NewChatAction(userID, tgbotapi.ChatTyping))
 				if err != nil {
 					log.Print(err)
-					return
 				}
 
+				var messageID int
+
 				for currentAnswer := range throttledAnswerChan {
-					editedMsg := tgbotapi.NewEditMessageText(userID, msg.MessageID, currentAnswer)
-					_, err := bot.Send(editedMsg)
-					if err != nil {
-						log.Print(err)
+					fmt.Print(messageID)
+					if messageID == 0 {
+						msg, err := bot.Send(tgbotapi.NewMessage(userID, currentAnswer))
+						if err != nil {
+							log.Print(err)
+						}
+						messageID = msg.MessageID
+					} else {
+						editedMsg := tgbotapi.NewEditMessageText(userID, msg.MessageID, currentAnswer)
+						_, err := bot.Send(editedMsg)
+						if err != nil {
+							log.Print(err)
+						}
 					}
 				}
 			})
 
 			wg.Wait()
-
-			// TODO: count tokens
-			// if contextTrimmed {
-			// 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Context trimmed.")
-			// 	msg.DisableNotification = true
-			// 	err = send(bot, msg)
-			// 	if err != nil {
-			// 		log.Print(err)
-			// 	}
-			// }
 		}
 	}
 }
