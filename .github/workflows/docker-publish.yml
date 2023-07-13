@@ -67,6 +67,9 @@ jobs:
         uses: docker/metadata-action@c4ee3adeed93b1fa6a762f209fb01608c1a22f1e
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # set latest tag for default branch
+            type=raw,value=latest,enable={{is_default_branch}}          
 
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action
