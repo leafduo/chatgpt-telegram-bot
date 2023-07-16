@@ -43,10 +43,10 @@ export MODEL_TEMPERATURE=1.0
 export CONVERSATION_IDLE_TIMEOUT_SECONDS=900
 # Optional, defaults to gpt-3.5-turbo. Specify which model to use.
 # Currently, only `gpt-3.5-turbo` and `gpt-4` are supported.
-export OPENAIModel=gpt-3.5-turbo
+export OPENAI_MODEL=gpt-3.5-turbo
 # Optional, defaults to https://api.openai.com.
 # You can use this to set a custom OpenAI API endpoint to use third party relay services like https://api2d.com/.
-export OpenAIBaseURL=https://api.openai.com
+export OPENAI_BASE_URL=https://api.openai.com
 
 chatgpt-telegram-bot
 ```
